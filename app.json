@@ -1,0 +1,10 @@
+{
+  "name": "De2solutionsERP",
+  "displayName": "Desolutions",
+  "android": {
+    "package": "com.de2solutions.erp"
+  },
+  "ios": {
+    "bundleIdentifier": "com.de2solutions.erp"
+  }
+}
