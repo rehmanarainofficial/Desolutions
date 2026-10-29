@@ -31,6 +31,8 @@ import BalanceSheetReportScreen from '@screens/reporting/BalanceSheetReportScree
 import AttendanceScreen from '@screens/hcm/AttendanceScreen';
 import ExpenseClaimInquiryScreen from '@screens/hcm/ExpenseClaimInquiryScreen';
 import ExpenseClaimScreen from '@screens/hcm/ExpenseClaimScreen';
+import UserStatusScreen from '@screens/dashboard/UserStatusScreen';
+import { startSessionWatcher, stopSessionWatcher } from '../services/UserSessionService';
 import { LoadingSpinner, CustomHeader } from '@components/common';
 
 const Stack = createNativeStackNavigator();
@@ -61,6 +63,18 @@ const AppNavigator = () => {
     restoreUserSession();
   }, [dispatch]);
 
+  // Session watcher: Monitor single active session and remote logout/deactivation
+  useEffect(() => {
+    if (isAuthenticated) {
+      startSessionWatcher();
+    } else {
+      stopSessionWatcher();
+    }
+    return () => {
+      stopSessionWatcher();
+    };
+  }, [isAuthenticated]);
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
@@ -88,6 +102,11 @@ const AppNavigator = () => {
             />
 
             <Stack.Screen name="Dashboard" component={DashboardScreen} />
+            <Stack.Screen
+              name="UserStatus"
+              component={UserStatusScreen}
+              options={{ title: 'User Status' }}
+            />
             <Stack.Screen
               name="AccountDetail"
               component={AccountDetailScreen}

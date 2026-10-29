@@ -26,6 +26,7 @@ const DashboardScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
   const dispatch = useDispatch();
   const company = useSelector(state => state.auth.company);
+  const user = useSelector(state => state.auth.user);
   
   // Get cached data from RTK Query cache
   const apiCache = useSelector(state => state.api);
@@ -503,6 +504,60 @@ const DashboardScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* User Management Section */}
+        {(!user?.role_id ||
+          Number(user?.role_id) === 2 ||
+          String(user?.role_id) === '2' ||
+          Number(user?.role_id) === 1 ||
+          String(user?.role_id) === '1' ||
+          user?.is_admin) && (
+          <View style={s.adminSection}>
+            <Text style={[s.sectionTitle, { color: theme.colors.text }]}>
+              User Management
+            </Text>
+            <TouchableOpacity
+              style={[
+                s.userManagementCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('UserStatus')}
+            >
+              <View style={s.userCardContent}>
+                <View
+                  style={[
+                    s.userCardIconBox,
+                    { backgroundColor: theme.colors.primary + '18' },
+                  ]}
+                >
+                  <Icon name="people" size={26} color={theme.colors.primary} />
+                </View>
+                <View style={s.userCardTextContainer}>
+                  <Text style={[s.userCardTitle, { color: theme.colors.text }]}>
+                    User Status
+                  </Text>
+                  <Text
+                    style={[
+                      s.userCardSubtitle,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    Manage login sessions and active/inactive status
+                  </Text>
+                </View>
+                <Icon
+                  name="chevron-forward"
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -648,6 +703,41 @@ const getStyles = theme =>
     totalValue: {
       fontSize: 15,
       fontWeight: '800',
+    },
+    adminSection: {
+      marginTop: 10,
+      marginBottom: 30,
+    },
+    userManagementCard: {
+      borderRadius: 16,
+      borderWidth: 1,
+      padding: 16,
+      ...theme.shadows?.sm,
+    },
+    userCardContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    userCardIconBox: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 14,
+    },
+    userCardTextContainer: {
+      flex: 1,
+      marginRight: 8,
+    },
+    userCardTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      marginBottom: 3,
+    },
+    userCardSubtitle: {
+      fontSize: 12,
+      fontWeight: '400',
     },
   });
 

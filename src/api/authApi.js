@@ -1,4 +1,4 @@
-import { baseApi } from './baseApi';
+import { baseApi, BASE_URL } from './baseApi';
 import Toast from 'react-native-toast-message';
 
 export const authApi = baseApi.injectEndpoints({
@@ -17,19 +17,43 @@ export const authApi = baseApi.injectEndpoints({
       },
 
       transformResponse: (response, meta, arg) => {
-        if (response.status === true) {
-          const user = response.data.find(u => u.user_id === arg.username);
-          if (user) {
-            return { success: true, user, message: response.message };
-          } else {
+        if (response.status === true || response.status === 'true') {
+          const user = response.data?.find(
+            u =>
+              String(u.user_id).trim().toLowerCase() ===
+              String(arg.username).trim().toLowerCase(),
+          );
+
+          if (!user) {
             throw new Error('User not found in response data');
           }
+
+          // 1. Check if account is inactive / deactivated
+          if (String(user.inactive) === '1') {
+            throw new Error(
+              'Your account has been deactivated. Please contact administrator.',
+            );
+          }
+
+          // 2. Check single active session: only one user/device logged in at a time
+          if (String(user.login_status) === '0') {
+            throw new Error(
+              'Only one active session is allowed at a time. This account is already logged in on another device.',
+            );
+          }
+
+          return {
+            success: true,
+            user: { ...user, login_status: '0' },
+            message: response.message,
+          };
         } else {
           throw new Error(response.message || 'Login failed');
         }
       },
       transformErrorResponse: (response, meta, arg) => {
         console.log('API Error response:', response);
+        console.log('Request detail:', meta);
         return {
           success: false,
           message:
@@ -39,10 +63,33 @@ export const authApi = baseApi.injectEndpoints({
           detail: response,
         };
       },
-      invalidatesTags: ['Auth', 'User'],
+      invalidatesTags: ['Auth', 'User', 'UserList'],
       async onQueryStarted(arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
+
+          // Notify server that user is now logged in (login_status: '0')
+          if (data?.user?.id && arg.company) {
+            try {
+              const formData = new FormData();
+              formData.append('id', String(data.user.id));
+              formData.append('company', arg.company);
+              formData.append('inactive', String(data.user.inactive || '0'));
+              formData.append('login_status', '0');
+              formData.append('login_active_status', '0');
+              if (data.user.app_version) {
+                formData.append('app_version', String(data.user.app_version));
+              }
+
+              await fetch(`${BASE_URL}/auth/logout_post.php`, {
+                method: 'POST',
+                body: formData,
+              });
+            } catch (postErr) {
+              console.log('Error updating login status on server on login:', postErr);
+            }
+          }
+
           Toast.show({
             type: 'success',
             text1: 'Login Successful',
@@ -61,8 +108,51 @@ export const authApi = baseApi.injectEndpoints({
         }
       },
     }),
+
+    getUsers: builder.query({
+      query: ({ company }) => {
+        const formData = new FormData();
+        formData.append('company', company);
+        return {
+          url: 'auth/users.php',
+          method: 'POST',
+          body: formData,
+        };
+      },
+      transformResponse: response => {
+        if (response?.status === true || response?.status === 'true') {
+          return response.data || [];
+        }
+        return [];
+      },
+      providesTags: ['UserList'],
+    }),
+
+    updateUserStatus: builder.mutation({
+      query: ({ id, company, inactive, login_status, login_active_status, app_version }) => {
+        const formData = new FormData();
+        formData.append('id', String(id));
+        formData.append('company', company);
+        formData.append('inactive', String(inactive));
+        formData.append('login_status', String(login_status));
+        formData.append('login_active_status', String(login_active_status));
+        if (app_version) {
+          formData.append('app_version', String(app_version));
+        }
+        return {
+          url: 'auth/logout_post.php',
+          method: 'POST',
+          body: formData,
+        };
+      },
+      invalidatesTags: ['UserList'],
+    }),
   }),
   overrideExisting: true,
 });
 
-export const { useLoginMutation } = authApi;
+export const {
+  useLoginMutation,
+  useGetUsersQuery,
+  useUpdateUserStatusMutation,
+} = authApi;

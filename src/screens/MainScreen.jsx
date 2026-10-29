@@ -9,10 +9,11 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { ThemeDropdown } from '@components/common';
-import { logout, selectCurrentUser } from '@store/slices/authSlice';
+import { selectCurrentUser } from '@store/slices/authSlice';
+import { logoutUserManually } from '../services/UserSessionService';
 import { useTheme } from '@config/useTheme';
 import { useToggleErpStatusMutation } from '@api/baseApi';
 import Toast from 'react-native-toast-message';
@@ -27,7 +28,6 @@ const MAX_VISIBLE = 8;
  */
 const MainScreen = ({ navigation }) => {
   const { theme } = useTheme();
-  const dispatch = useDispatch();
   const user = useSelector(selectCurrentUser);
   const company = useSelector(state => state.auth.company);
 
@@ -70,8 +70,8 @@ const MainScreen = ({ navigation }) => {
     }
   };
 
-  const handleLogout = () => {
-    dispatch(logout());
+  const handleLogout = async () => {
+    await logoutUserManually();
   };
 
   const menuItems = [

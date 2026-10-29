@@ -1,12 +1,13 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { API_BASE_URL } from '@env';
 
+export const BASE_URL = (API_BASE_URL && API_BASE_URL.trim()) || 'https://d.de2solutions.com/mobile';
 export const baseApi = createApi({
   reducerPath: 'api',
   baseQuery: fetchBaseQuery({
-    baseUrl: API_BASE_URL,
+    baseUrl: BASE_URL,
   }),
-  tagTypes: ['User', 'Auth', 'Dashboard', 'Dimension'],
+  tagTypes: ['User', 'Auth', 'Dashboard', 'Dimension', 'UserList'],
   keepUnusedDataFor: 600, // 10 minutes cache
   endpoints: builder => ({
     getFunctionalityCheck: builder.mutation({
