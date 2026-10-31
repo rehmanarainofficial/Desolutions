@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
 import store from '../store';
 import { logout } from '../store/slices/authSlice';
-import { BASE_URL } from '../api/baseApi';
+import { authApi } from '../api/authApi';
+import { APP_VERSION, isVersionOutdated } from '../utils/AppVersion';
 
 let sessionCheckInterval = null;
 let appStateSubscription = null;
@@ -46,7 +47,7 @@ export const performCompleteLogout = async (
 };
 
 /**
- * User-initiated logout from the app (notifies backend that login_status = '1').
+ * User-initiated logout from the app (notifies backend via RTK Query that login_status = '1').
  */
 export const logoutUserManually = async () => {
   const state = store.getState();
@@ -55,22 +56,20 @@ export const logoutUserManually = async () => {
 
   if (currentUser?.id && company) {
     try {
-      const formData = new FormData();
-      formData.append('id', String(currentUser.id));
-      formData.append('company', company);
-      formData.append('inactive', String(currentUser.inactive || '0'));
-      formData.append('login_status', '1'); // 1 = Logged out
-      formData.append('login_active_status', '0');
-      if (currentUser.app_version) {
-        formData.append('app_version', String(currentUser.app_version));
-      }
-
-      await fetch(`${BASE_URL}/auth/logout_post.php`, {
-        method: 'POST',
-        body: formData,
-      });
+      await store
+        .dispatch(
+          authApi.endpoints.updateUserStatus.initiate({
+            id: currentUser.id,
+            company,
+            inactive: currentUser.inactive || '0',
+            login_status: '1', // 1 = Logged out
+            login_active_status: '0',
+            app_version: currentUser.app_version || APP_VERSION,
+          }),
+        )
+        .unwrap();
     } catch (err) {
-      console.log('Error notifying server on manual logout:', err);
+      console.log('Error notifying server on manual logout via RTK Query:', err);
     }
   }
 
@@ -79,7 +78,8 @@ export const logoutUserManually = async () => {
 
 /**
  * Validates whether the current active user is still allowed to stay logged in.
- * If user was deactivated or logged out remotely, logs them out immediately.
+ * Uses RTK Query authApi.endpoints.getUsers.initiate().
+ * If user was deactivated, app version is outdated, or logged out remotely, logs them out immediately.
  */
 export const validateCurrentUserSession = async () => {
   if (isCheckingSession || isLoggingOut) return;
@@ -95,54 +95,63 @@ export const validateCurrentUserSession = async () => {
 
   isCheckingSession = true;
   try {
-    const formData = new FormData();
-    formData.append('company', company);
+    const usersResult = await store
+      .dispatch(
+        authApi.endpoints.getUsers.initiate(
+          { company },
+          { forceRefetch: true },
+        ),
+      )
+      .unwrap();
 
-    const response = await fetch(`${BASE_URL}/auth/users.php`, {
-      method: 'POST',
-      body: formData,
-    });
-    const result = await response.json();
+    const users = Array.isArray(usersResult) ? usersResult : [];
+    const currentUserId = String(currentUser.id || '');
+    const currentUserName = String(currentUser.user_id || '').toLowerCase();
 
-    if (result && (result.status === true || result.status === 'true')) {
-      const users = result.data || [];
-      const currentUserId = String(currentUser.id || '');
-      const currentUserName = String(currentUser.user_id || '').toLowerCase();
+    const matchedUser = users.find(
+      u =>
+        (currentUserId && String(u.id) === currentUserId) ||
+        (currentUserName &&
+          String(u.user_id || '').toLowerCase() === currentUserName),
+    );
 
-      const matchedUser = users.find(
-        u =>
-          (currentUserId && String(u.id) === currentUserId) ||
-          (currentUserName && String(u.user_id || '').toLowerCase() === currentUserName),
+    if (!matchedUser) {
+      await performCompleteLogout(
+        'Account Removed',
+        'Your user account is no longer available.',
       );
+      return;
+    }
 
-      if (!matchedUser) {
-        await performCompleteLogout(
-          'Account Removed',
-          'Your user account is no longer available.',
-        );
-        return;
-      }
+    // 1. Check if user was deactivated by admin
+    if (String(matchedUser.inactive) === '1') {
+      await performCompleteLogout(
+        'Account Deactivated',
+        'Your account has been deactivated by administrator.',
+      );
+      return;
+    }
 
-      // Check if user was deactivated by admin
-      if (String(matchedUser.inactive) === '1') {
-        await performCompleteLogout(
-          'Account Deactivated',
-          'Your account has been deactivated by administrator.',
-        );
-        return;
-      }
+    // 2. Check if user's installed app version is outdated
+    const minRequiredVersion = matchedUser.min_required_version;
+    if (isVersionOutdated(APP_VERSION, minRequiredVersion)) {
+      await performCompleteLogout(
+        'Update Required',
+        `A new version (v${minRequiredVersion}) of Desolutions is required. You are using v${APP_VERSION}. Please install the latest update.`,
+      );
+      return;
+    }
 
-      // Check if user was logged out remotely by admin
-      if (String(matchedUser.login_status) === '1') {
-        await performCompleteLogout(
-          'Session Ended',
-          'You have been logged out remotely by administrator.',
-        );
-        return;
-      }
+    // 3. Check if user was logged out remotely by admin
+    if (String(matchedUser.login_status) === '1') {
+      await performCompleteLogout(
+        'Session Ended',
+        'You have been logged out remotely by administrator.',
+      );
+      return;
     }
   } catch (error) {
-    // Network blips should not immediately boot the user
+    // Network errors should not immediately boot the user
     console.log('Session validation check error:', error?.message);
   } finally {
     isCheckingSession = false;
@@ -189,4 +198,3 @@ export const stopSessionWatcher = () => {
     appStateSubscription = null;
   }
 };
-

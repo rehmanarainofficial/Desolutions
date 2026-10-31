@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '@config/useTheme';
 import { ModuleQuickActionButton } from '@components/common';
 
@@ -10,7 +9,7 @@ const SalesScreen = ({ navigation }) => {
 
   const actions = [
     { label: 'Add Customer', icon: 'person-add-outline', screen: 'SalesAddCustomer' },
-    { label: 'Delivery', icon: 'cube-outline', screen: 'SalesDelivery' },
+    { label: 'Sales Entry', icon: 'barcode-outline', screen: 'SalesEntry' },
     { label: 'Track Order Status', icon: 'locate-outline', screen: 'SalesTrackOrderStatus' },
     { label: 'Receivable', icon: 'cash-outline', screen: 'SalesReceivable' },
     { label: 'Cost Center', icon: 'layers-outline', screen: 'SalesCostCenter' },

@@ -32,6 +32,10 @@ import AttendanceScreen from '@screens/hcm/AttendanceScreen';
 import ExpenseClaimInquiryScreen from '@screens/hcm/ExpenseClaimInquiryScreen';
 import ExpenseClaimScreen from '@screens/hcm/ExpenseClaimScreen';
 import UserStatusScreen from '@screens/dashboard/UserStatusScreen';
+import SalesEntryScreen from '@screens/sales/SalesEntryScreen';
+import SalesProcessScreen from '@screens/sales/SalesProcessScreen';
+import PurchaseEntryScreen from '@screens/purchase/PurchaseEntryScreen';
+import PurchaseProcessScreen from '@screens/purchase/PurchaseProcessScreen';
 import { startSessionWatcher, stopSessionWatcher } from '../services/UserSessionService';
 import { LoadingSpinner, CustomHeader } from '@components/common';
 
@@ -163,7 +167,9 @@ const AppNavigator = () => {
             <Stack.Screen name="Finance" component={FinanceScreen} />
             {/* Placeholder screens for module quick actions */}
             <Stack.Screen name="SalesAddCustomer" component={FinanceScreen} />
-            <Stack.Screen name="SalesDelivery" component={FinanceScreen} />
+            <Stack.Screen name="SalesEntry" component={SalesEntryScreen} />
+            <Stack.Screen name="SalesProcess" component={SalesProcessScreen} options={{ title: 'Process Order' }} />
+            <Stack.Screen name="SalesDelivery" component={SalesEntryScreen} />
             <Stack.Screen
               name="SalesTrackOrderStatus"
               component={FinanceScreen}
@@ -172,6 +178,8 @@ const AppNavigator = () => {
             <Stack.Screen name="SalesCostCenter" component={FinanceScreen} />
             <Stack.Screen name="SalesTransactions" component={FinanceScreen} />
 
+            <Stack.Screen name="PurchaseEntry" component={PurchaseEntryScreen} />
+            <Stack.Screen name="PurchaseProcess" component={PurchaseProcessScreen} options={{ title: 'Process Purchase Order' }} />
             <Stack.Screen
               name="PurchaseAddSupplier"
               component={FinanceScreen}

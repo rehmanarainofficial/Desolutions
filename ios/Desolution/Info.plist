@@ -34,6 +34,17 @@
 		<true/>
 		<key>NSExceptionDomains</key>
 		<dict>
+			<key>d.de2solutions.com</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSExceptionRequiresForwardSecrecy</key>
+				<false/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
 			<key>de2solutions.com</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>

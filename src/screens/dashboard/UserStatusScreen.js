@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,15 +14,24 @@ import { useSelector } from 'react-redux';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Toast from 'react-native-toast-message';
 import { useTheme } from '@config/useTheme';
-import { BASE_URL } from '@api/baseApi';
+import { useGetUsersQuery, useUpdateUserStatusMutation } from '@api/authApi';
+import { APP_VERSION, isVersionOutdated } from '../../utils/AppVersion';
 
 const UserStatusScreen = () => {
   const { theme } = useTheme();
   const company = useSelector(state => state.auth.company);
   const currentUser = useSelector(state => state.auth.user);
 
+  // RTK Query: fetch users and status update mutation
+  const {
+    data: fetchedUsers = [],
+    isLoading: loading,
+    refetch,
+  } = useGetUsersQuery({ company }, { skip: !company });
+
+  const [updateUserStatus] = useUpdateUserStatusMutation();
+
   const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('all');
@@ -30,48 +39,17 @@ const UserStatusScreen = () => {
 
   const s = useMemo(() => getStyles(theme), [theme]);
 
-  const fetchUsers = useCallback(async () => {
-    if (!company) {
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append('company', company);
-
-      const res = await fetch(`${BASE_URL}/auth/users.php`, {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (data && (data.status === true || data.status === 'true')) {
-        setUsers(data.data || []);
-      } else {
-        setUsers([]);
-      }
-    } catch (error) {
-      console.log('Error fetching users:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'Failed to fetch users list.',
-      });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [company]);
-
+  // Sync RTK Query data with local state for optimistic updates
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    if (fetchedUsers) {
+      setUsers(fetchedUsers);
+    }
+  }, [fetchedUsers]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    fetchUsers();
+    await refetch();
+    setRefreshing(false);
   };
 
   const handleToggleLoginStatus = async user => {
@@ -91,21 +69,14 @@ const UserStatusScreen = () => {
     );
 
     try {
-      const formData = new FormData();
-      formData.append('id', String(userId));
-      formData.append('company', company);
-      formData.append('inactive', String(user.inactive || '0'));
-      formData.append('login_status', newStatus);
-      formData.append('login_active_status', '0');
-      if (user.app_version) {
-        formData.append('app_version', String(user.app_version));
-      }
-
-      const res = await fetch(`${BASE_URL}/auth/logout_post.php`, {
-        method: 'POST',
-        body: formData,
-      });
-      const responseData = await res.json();
+      const responseData = await updateUserStatus({
+        id: userId,
+        company,
+        inactive: String(user.inactive || '0'),
+        login_status: newStatus,
+        login_active_status: '0',
+        app_version: String(user.app_version || ''),
+      }).unwrap();
 
       if (
         responseData &&
@@ -142,7 +113,7 @@ const UserStatusScreen = () => {
       Toast.show({
         type: 'error',
         text1: 'Network Error',
-        text2: 'Failed to update login status.',
+        text2: error?.data?.message || error?.message || 'Failed to update login status.',
       });
     } finally {
       setUpdatingIds(prev => {
@@ -170,21 +141,14 @@ const UserStatusScreen = () => {
     );
 
     try {
-      const formData = new FormData();
-      formData.append('id', String(userId));
-      formData.append('company', company);
-      formData.append('inactive', newInactive);
-      formData.append('login_status', String(user.login_status || '0'));
-      formData.append('login_active_status', '1');
-      if (user.app_version) {
-        formData.append('app_version', String(user.app_version));
-      }
-
-      const res = await fetch(`${BASE_URL}/auth/logout_post.php`, {
-        method: 'POST',
-        body: formData,
-      });
-      const responseData = await res.json();
+      const responseData = await updateUserStatus({
+        id: userId,
+        company,
+        inactive: newInactive,
+        login_status: String(user.login_status || '0'),
+        login_active_status: '1',
+        app_version: String(user.app_version || ''),
+      }).unwrap();
 
       if (
         responseData &&
@@ -221,7 +185,7 @@ const UserStatusScreen = () => {
       Toast.show({
         type: 'error',
         text1: 'Network Error',
-        text2: 'Failed to update active status.',
+        text2: error?.data?.message || error?.message || 'Failed to update active status.',
       });
     } finally {
       setUpdatingIds(prev => {
@@ -308,6 +272,12 @@ const UserStatusScreen = () => {
       String(currentUser?.id) === String(item.id) ||
       String(currentUser?.user_id || '').toLowerCase() === String(item.user_id || '').toLowerCase();
 
+    const minRequiredVersion =
+      item.min_required_version || users[0]?.min_required_version;
+    const isOutdated = minRequiredVersion
+      ? isVersionOutdated(item.app_version || '1.0', minRequiredVersion)
+      : false;
+
     return (
       <View style={s.userCard}>
         <View style={s.cardTopRow}>
@@ -365,16 +335,31 @@ const UserStatusScreen = () => {
 
             <View style={s.userSubRow}>
               <Text style={s.usernameText}>@{item.user_id}</Text>
-              {item.app_version ? (
-                <View style={[s.versionBadge, { backgroundColor: theme.colors.surface }]}>
-                  <Icon
-                    name="phone-portrait-outline"
-                    size={11}
-                    color={theme.colors.textSecondary}
-                  />
-                  <Text style={s.versionText}>v{item.app_version}</Text>
-                </View>
-              ) : null}
+              <View
+                style={[
+                  s.versionBadge,
+                  isOutdated && {
+                    backgroundColor: theme.colors.error + '15',
+                    borderColor: theme.colors.error + '40',
+                  },
+                ]}
+              >
+                <Icon
+                  name={isOutdated ? 'alert-circle' : 'phone-portrait-outline'}
+                  size={11}
+                  color={isOutdated ? theme.colors.error : theme.colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    s.versionText,
+                    isOutdated && s.versionTextOutdated,
+                  ]}
+                >
+                  {item.app_version
+                    ? `v${item.app_version}${isOutdated ? ' (Old)' : ''}`
+                    : `v${APP_VERSION}`}
+                </Text>
+              </View>
             </View>
 
             <View style={s.metaRow}>
@@ -753,11 +738,16 @@ const getStyles = theme =>
       borderRadius: 6,
       borderWidth: 1,
       borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
     },
     versionText: {
       fontSize: 10,
       fontWeight: '600',
       color: theme.colors.textSecondary,
+    },
+    versionTextOutdated: {
+      color: theme.colors.error,
+      fontWeight: '700',
     },
     metaRow: {
       flexDirection: 'row',

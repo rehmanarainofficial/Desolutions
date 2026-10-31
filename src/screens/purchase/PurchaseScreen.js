@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import Icon from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '@config/useTheme';
 import { ModuleQuickActionButton } from '@components/common';
 
@@ -9,6 +8,7 @@ const PurchaseScreen = ({ navigation }) => {
   const styles = getStyles(theme);
 
   const actions = [
+    { label: 'Purchase Entry', icon: 'barcode-outline', screen: 'PurchaseEntry' },
     { label: 'Add Supplier', icon: 'person-add-outline', screen: 'PurchaseAddSupplier' },
     { label: 'GRN Again PO', icon: 'document-text-outline', screen: 'PurchaseGRNAgainPO' },
     { label: 'Post Dated Cheque Detail', icon: 'calendar-outline', screen: 'PurchasePDCDetail' },

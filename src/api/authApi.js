@@ -1,5 +1,6 @@
 import { baseApi, BASE_URL } from './baseApi';
 import Toast from 'react-native-toast-message';
+import { APP_VERSION, isVersionOutdated } from '../utils/AppVersion';
 
 export const authApi = baseApi.injectEndpoints({
   endpoints: builder => ({
@@ -35,7 +36,15 @@ export const authApi = baseApi.injectEndpoints({
             );
           }
 
-          // 2. Check single active session: only one user/device logged in at a time
+          // 2. Check min_required_version from API vs running app version
+          const minRequiredVersion = user.min_required_version;
+          if (isVersionOutdated(APP_VERSION, minRequiredVersion)) {
+            throw new Error(
+              `A new version (v${minRequiredVersion}) of Desolutions is required. You are using v${APP_VERSION}. Please install the latest update.`,
+            );
+          }
+
+          // 3. Check single active session: only one user/device logged in at a time
           if (String(user.login_status) === '0') {
             throw new Error(
               'Only one active session is allowed at a time. This account is already logged in on another device.',
@@ -52,15 +61,31 @@ export const authApi = baseApi.injectEndpoints({
         }
       },
       transformErrorResponse: (response, meta, arg) => {
-        console.log('API Error response:', response);
-        console.log('Request detail:', meta);
+        const reqUrl = meta?.request?.url || `${BASE_URL}/auth/users.php`;
+        console.log('❌ Login Request Failed:', {
+          url: reqUrl,
+          method: meta?.request?.method || 'POST',
+          status: response?.status,
+          error: response?.error,
+        });
+
+        let displayMessage =
+          response?.data?.message ||
+          response?.error ||
+          'Network error occurred';
+
+        if (
+          String(response?.error).includes('Network request failed') ||
+          response?.status === 'FETCH_ERROR'
+        ) {
+          displayMessage = `Unable to connect to server (${reqUrl}). Please check your internet or DNS connection.`;
+        }
+
         return {
           success: false,
-          message:
-            response?.data?.message ||
-            response?.error ||
-            'Network error occurred',
+          message: displayMessage,
           detail: response,
+          requestUrl: reqUrl,
         };
       },
       invalidatesTags: ['Auth', 'User', 'UserList'],
@@ -68,23 +93,19 @@ export const authApi = baseApi.injectEndpoints({
         try {
           const { data } = await queryFulfilled;
 
-          // Notify server that user is now logged in (login_status: '0')
+          // Notify server via RTK Query that user is now logged in (login_status: '0')
           if (data?.user?.id && arg.company) {
             try {
-              const formData = new FormData();
-              formData.append('id', String(data.user.id));
-              formData.append('company', arg.company);
-              formData.append('inactive', String(data.user.inactive || '0'));
-              formData.append('login_status', '0');
-              formData.append('login_active_status', '0');
-              if (data.user.app_version) {
-                formData.append('app_version', String(data.user.app_version));
-              }
-
-              await fetch(`${BASE_URL}/auth/logout_post.php`, {
-                method: 'POST',
-                body: formData,
-              });
+              dispatch(
+                authApi.endpoints.updateUserStatus.initiate({
+                  id: data.user.id,
+                  company: arg.company,
+                  inactive: data.user.inactive || '0',
+                  login_status: '0',
+                  login_active_status: '0',
+                  app_version: APP_VERSION,
+                }),
+              );
             } catch (postErr) {
               console.log('Error updating login status on server on login:', postErr);
             }
@@ -144,6 +165,16 @@ export const authApi = baseApi.injectEndpoints({
           method: 'POST',
           body: formData,
         };
+      },
+      transformResponse: response => {
+        if (typeof response === 'string') {
+          try {
+            return JSON.parse(response);
+          } catch (e) {
+            return { status: true, message: response };
+          }
+        }
+        return response;
       },
       invalidatesTags: ['UserList'],
     }),

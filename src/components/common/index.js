@@ -10,3 +10,4 @@ export { default as PersonDropdown } from './PersonDropdown';
 export { default as GLAccountDropdown } from './GLAccountDropdown';
 export { default as CounterPartyDropdown } from './CounterPartyDropdown';
 export { default as CustomDatePicker } from './CustomDatePicker';
+export { default as SearchableSelectDropdown } from './SearchableSelectDropdown';
